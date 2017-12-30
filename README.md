@@ -1,2 +1,3 @@
 # Notebooks
-Just some public notebooks
+
+Collection of truly random pointless notebooks I don't want to lose.
