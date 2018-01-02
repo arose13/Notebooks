@@ -5,6 +5,7 @@ from sklearn.utils.validation import check_is_fitted
 
 
 def _np_dropna(a):
+    """Mimics pandas dropna"""
     return a[~np.isnan(a).any(axis=1)]
 
 
