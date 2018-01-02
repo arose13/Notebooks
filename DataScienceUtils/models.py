@@ -15,7 +15,6 @@ class PreTrainedVoteEnsemble(ClassifierMixin):
     Binary Ensemble Classifier that only accepts pre-trained models as an input.
     """
     def __init__(self, trained_estimators):
-        _ = [check_is_fitted(x) for x in trained_estimators]
         self.estimators = trained_estimators
         self.models_ = [model for _, model in trained_estimators]
 
