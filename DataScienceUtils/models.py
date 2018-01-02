@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.neighbors import KernelDensity
-from sklearn.utils.validation import check_is_fitted
 
 
 def _np_dropna(a):
