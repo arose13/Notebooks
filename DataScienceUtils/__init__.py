@@ -1,6 +1,5 @@
 # Collection of Data Science Utilities. If it gets out of hand break them off into their on files
 import numpy as np
-import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 
 
