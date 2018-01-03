@@ -1,6 +1,9 @@
+import copy
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.model_selection import KFold
 from sklearn.neighbors import KernelDensity
+from sklearn.utils import resample
 
 
 def _np_dropna(a):
@@ -21,8 +24,52 @@ class PreTrainedVoteEnsemble(ClassifierMixin):
         return np.argmax(self.predict_proba(X), 1)
 
     def predict_proba(self, X):
-        collection = np.asarray([model.predict_proba(X) for model in self.models_])
-        return np.average(collection, axis=0)
+        probabilities = np.asarray([est.predict_proba(X) for est in self.models_])
+        return np.average(probabilities, axis=0)
+
+
+# noinspection PyPep8Naming
+class KerasSKWrappedBaggingClassifier(ClassifierMixin):
+    """
+    Implements bagging for Keras models that have been wrapped in an SKLearn wrapper
+
+    :param bootstrap: if False then use Stratified K Fold CV to fit the ensemble
+    """
+    def __init__(self, base_estimator, n_estimators=10, bootstrap=True, random_state=None):
+        assert n_estimators >= 2, 'Ensemble models needs 2 or more estimators'
+        self.models_, self.classes_ = [], None
+        self._base_model = base_estimator
+        self._n_estimators = n_estimators
+        self._bootstrap = bootstrap
+        self.random_state = random_state
+
+    def fit(self, X, y):
+        self.models_ = []
+        if self._bootstrap:
+            # Bootstrapping (Traditional bagging)
+            for i in range(self._n_estimators):
+                x_boot, y_boot = resample(X, y, random_state=self.random_state)
+                model_i = copy.deepcopy(self._base_model)
+                model_i.fit(x_boot, y_boot)
+                self.models_.append(model_i)
+        else:
+            # Cross Validation (Ensures all data is used)
+            k_fold = KFold(n_splits=self._n_estimators, shuffle=True, random_state=self.random_state)
+            for train_indices, _ in k_fold.split(X, y):
+                x_cv, y_cv = X[train_indices], y[train_indices]
+                model_i = copy.deepcopy(self._base_model)
+                model_i.fit(x_cv, y_cv)
+                self.models_.append(model_i)
+        return self
+
+    def predict_proba(self, X):
+        assert len(self.models_) > 0, 'Fit must be called first!'
+        probabilities = np.asarray([est.predict_proba(X) for est in self.models_])
+        return np.average(probabilities, axis=0)
+
+    def predict(self, X):
+        # TODO 1/3/2018 does this work for non-binary predictions?
+        return np.argmax(self.predict_proba(X), 1)
 
 
 # noinspection PyPep8Naming
