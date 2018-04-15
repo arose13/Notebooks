@@ -11,6 +11,31 @@ def _np_dropna(a):
     return a[~np.isnan(a).any(axis=1)]
 
 
+def make_keras_picklable():
+    """
+    This must be called on top of the script
+    """
+    import tempfile
+    import keras.models
+
+    def __getstate__(self):
+        with tempfile.NamedTemporaryFile(suffix='.hdf5', delete=True) as temp:
+            keras.models.save_model(self, temp.name, overwrite=True)
+            model_str = temp.read()
+        return {'model_str': model_str}
+
+    def __setstate__(self, state):
+        with tempfile.NamedTemporaryFile(suffix='.hdf5', delete=True) as temp:
+            temp.write(state['model_str'])
+            temp.flush()
+            model = keras.models.load_model(temp.name)
+        self.__dict__ = model.__dict__
+
+    cls = keras.models.Model
+    cls.__getstate__ = __getstate__
+    cls.__setstate__ = __setstate__
+
+
 # noinspection PyPep8Naming
 class PreTrainedVoteEnsemble(ClassifierMixin):
     """
