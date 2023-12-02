@@ -61,6 +61,9 @@ class MultiHeadSelfAttention(nn.Module):
 class NonlinearReprojection(nn.Module):
     """
     I mean come on, it's just a 2-layer MLP
+
+    embedding_size * 4 comes from the paper (2nd paragraph of section 2.1)
+    https://arxiv.org/pdf/2005.14165v4.pdf
     """
     def __init__(self, embedding_size):
         super().__init__()
@@ -246,6 +249,9 @@ class SmallLM(nn.Module):
     
     def __repr__(self):
         representation = super().__repr__()
-        representation += f'\n[[Params: {self.n_params:,}]]'
-        representation += f'\n[[Embedding Size: {self.embedding_size:,}]]'
+        representation += f'\n[[Embedding Size (d_model): {self.embedding_size:,}]]'
+        representation += f'\n[[Context Size: {self.context_size:,}]]'
+        representation += f'\n[[Vocab Size: {self.vocab_size:,}]]'
+        representation += f'\n[[n_params: {self.n_params:,}]]'
+        representation += f'\n[[n_layers: {len(self.subblocks)} | n_heads: {self.n_heads:,} | d_head: {self.head_size:,}]]'
         return representation
