@@ -25,5 +25,3 @@ print(slm)
 # Generate some text!
 print('Sample')
 _ = slm.generate('Before we proceed any further,')
-
-# %%

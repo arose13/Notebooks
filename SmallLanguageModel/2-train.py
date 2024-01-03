@@ -15,7 +15,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Hyperparameters
 dataset_name = 'compacted'  # 'compacted' or 'processed'
-n_epochs = 25
+n_epochs = 200
 
 # load required files
 dataset = DatasetDict.load_from_disk(f'data/{dataset_name}-dataset')
@@ -44,8 +44,16 @@ print(f'=== Time taken: {time() - start_time:.2f}s ===')
 #################################################################################################
 hist = []
 best_val_loss, best_epoch = float('inf'), None
-optimizer = torch.optim.AdamW(slm.parameters(), lr=1e-4, weight_decay=0.1)  # bayesian normal prior on the weights
+optimizer = torch.optim.AdamW(
+    slm.parameters(),
+    lr=1e-5,
+    betas=(0.9, 0.95),
+    weight_decay=0.1,
+    
+)  # bayesian normal prior on the weights
 
+#%%
+# Train loop
 train_dataloader = DataLoader(dataset['train'], batch_size=64, shuffle=True)
 valid_dataloader = DataLoader(dataset['val'], batch_size=64, shuffle=True)
 
@@ -68,6 +76,7 @@ for epoch in iterator:
         
         # Backward pass
         loss_i.backward()
+        torch.nn.utils.clip_grad_norm_(slm.parameters(), 1.0)  # gradient clipping
         optimizer.step()
         loss += loss_i.item()
         subiterator.set_description(f'Minibatch {i + 1:,} | Loss: {loss_i.item():.4f}') 
@@ -87,7 +96,7 @@ for epoch in iterator:
     # Save the best model
     if val_loss < best_val_loss:
         best_val_loss, best_epoch = val_loss, epoch
-        torch.save(slm.state_dict(), f'data/model/model-{dataset_name}.pt')
+        # torch.save(slm.state_dict(), f'data/model/model-{dataset_name}.pt')
 
     # Track metrics
     hist.append([loss, val_loss])
@@ -100,3 +109,5 @@ graph.legend()
 graph.xlabel('Epoch')
 graph.ylabel('Loss')
 graph.show()
+
+# %%

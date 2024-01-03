@@ -9,6 +9,52 @@ tokenizer = AutoTokenizer.from_pretrained('data/tokenizer')
 context_size = tokenizer.model_max_length
 
 
+class RMSNorm(nn.Module):
+    def __init__(self, d, p=-1., eps=1e-8, bias=False):
+        """
+        Root Mean Square Layer Normalization
+        https://arxiv.org/pdf/1910.07467.pdf
+
+        :param d: model size
+        :param p: partial RMSNorm, valid value [0, 1], default -1.0 (disabled)
+        :param eps:  epsilon value, default 1e-8
+        :param bias: whether use bias term for RMSNorm, disabled by
+            default because RMSNorm doesn't enforce re-centering invariance.
+        """
+        super(RMSNorm, self).__init__()
+
+        self.eps = eps
+        self.d = d
+        self.p = p
+        self.bias = bias
+
+        self.scale = nn.Parameter(torch.ones(d))
+        self.register_parameter('scale', self.scale)
+
+        if self.bias:
+            self.offset = nn.Parameter(torch.zeros(d))
+            self.register_parameter('offset', self.offset)
+
+    def forward(self, x):
+        if self.p < 0. or self.p > 1.0:
+            norm_x = x.norm(2, dim=-1, keepdim=True)
+            d_x = self.d
+        else:
+            partial_size = int(self.d * self.p)
+            partial_x, _ = torch.split(x, [partial_size, self.d - partial_size], dim=-1)
+
+            norm_x = partial_x.norm(2, dim=-1, keepdim=True)
+            d_x = partial_size
+
+        rms_x = norm_x * d_x ** (-1.0 / 2)
+        x_normed = x / (rms_x + self.eps)
+
+        if self.bias:
+            return self.scale * x_normed + self.offset
+
+        return self.scale * x_normed
+
+
 class MultiHeadSelfAttention(nn.Module):
     """
     Implementation of Multi-Head Self Attention from "Attention is all you need"
@@ -24,8 +70,8 @@ class MultiHeadSelfAttention(nn.Module):
         assert self.head_size * n_heads == embedding_size, f'Embedding size must be divisible by number of heads'
 
         # project x into Q, K, V matrices
-        self.qkv_reprojector = nn.Linear(embedding_size, 3*embedding_size)
-        self.linear_reproject = nn.Linear(embedding_size, embedding_size)
+        self.qkv_reprojector = nn.Linear(embedding_size, 3*embedding_size, bias=False)
+        self.linear_reproject = nn.Linear(embedding_size, embedding_size, bias=False)
 
     def forward(self, x):
         # x.shape = (n, seq_len, embedding_size)
@@ -96,9 +142,11 @@ class SubBlock(nn.Module):
         self.embedding_size = embedding_size
         self.n_heads = n_heads
 
-        self.pre_norm = nn.LayerNorm(self.embedding_size, bias=False, eps=1e-6)
+        # self.pre_norm = nn.LayerNorm(self.embedding_size, bias=False, eps=1e-6)
+        self.pre_norm = RMSNorm(self.embedding_size, bias=False)
         self.msa = MultiHeadSelfAttention(self.n_heads, self.embedding_size)
-        self.layer_norm_2 = nn.LayerNorm(self.embedding_size, bias=False, eps=1e-6)
+        # self.layer_norm_2 = nn.LayerNorm(self.embedding_size, bias=False, eps=1e-6)
+        self.layer_norm_2 = RMSNorm(self.embedding_size, bias=False)
         self.nonlinear_reprojection = NonlinearReprojection(self.embedding_size)
     
     def forward(self, x):
@@ -152,7 +200,8 @@ class SmallLM(nn.Module):
                 for _ in range(n_layers)
             ])
 
-            self.ln_no_bias = nn.LayerNorm(self.embedding_size, bias=False, eps=1e-6)
+            # self.ln_no_bias = nn.LayerNorm(self.embedding_size, bias=False, eps=1e-6)
+            self.ln_no_bias = RMSNorm(self.embedding_size, bias=False)
 
             self.output_projection = nn.Linear(self.embedding_size, self.vocab_size, bias=False)
 
