@@ -1,12 +1,12 @@
 #%%
 """
-Facebook's FAISS 
-Install faiss-cpu using `conda install -c conda-forge faiss-cpu`
+Spotify's Voyager Demo
+package installed easier that faiss with
+`pip install voyager`
 """
 import pandas as pd
-import torch.nn.functional as pf
-import faiss
 from tqdm.auto import tqdm
+from voyager import Index, Space
 from timeit import default_timer
 from mockdata import mock_vectors, experiment_generator, batched
 from rosey_graph.notebook import auto_display
@@ -17,38 +17,31 @@ for dim, n_users, n_items in experiment_generator():
     print(f"dim={dim:,} | n_users={n_users:,} | n_items={n_items:,}")
     user_vectors, item_vectors = mock_vectors(n_users, n_items, dim)
 
-    # l2 norm of all vectors
-    user_vectors = pf.normalize(user_vectors, p=2, dim=1)
-    item_vectors = pf.normalize(item_vectors, p=2, dim=1)
+    # convert to numpy arrays
+    user_vectors = user_vectors.numpy()
+    item_vectors = item_vectors.numpy()
 
+    # Indexing
     start = default_timer()
-    # index = faiss.IndexFlatL2(dim)  # Exact NN Search
-    index = faiss.IndexIVFFlat(
-        faiss.IndexFlatL2(dim),
-        dim,
-        20,  # n centeroids!gs
-        faiss.METRIC_INNER_PRODUCT
-    )
-    index.train(item_vectors)
-    index.add(item_vectors)
+    index = Index(Space.Cosine, num_dimensions=dim)
+    index.add_items(item_vectors)
     indexing_dura = default_timer() - start
     print(f"Indexing duration: {indexing_dura:,.4f} seconds")
 
     # Search
     if n_users <= int(100e3):
         start = default_timer()
-        index.search(user_vectors, 10)
+        index.query(user_vectors, k=10)
         search_dura = default_timer() - start
     else:
         start = default_timer()
         batch_size = 10_000
-        for batch_user_vectors in tqdm(
+        for batch in tqdm(
             batched(user_vectors, batch_size),
             total=len(user_vectors)//batch_size
         ):
-            index.search(batch_user_vectors, 10)
+            index.query(batch, k=10)
         search_dura = default_timer() - start
-
     print(f"Search duration: {search_dura:,.4f} seconds")
     print('-'*60)
 
@@ -60,5 +53,5 @@ for dim, n_users, n_items in experiment_generator():
         'search_dura': search_dura
     })
 results = pd.DataFrame(results)
-results.to_csv('faiss-ann-batches-benchmark.csv', index=False)
+results.to_csv('voyager-ann-benchmark.csv', index=False)
 auto_display(results)
